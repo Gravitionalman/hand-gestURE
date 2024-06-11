@@ -1,3 +1,38 @@
+![WhatsApp Image 2024-06-06 at 21 51 16_ca613470](https://github.com/Gravitionalman/hand-gestURE/assets/111657126/6f5616ee-4be8-44cc-a1eb-e2f53853c26a)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Hand Gesture Controlled UAV
 
 This project involves creating a hand gesture-controlled UAV (Unmanned Aerial Vehicle) using an ESP8266, MPU6050 sensor, and NRF24L01 modules. The UAV's flight control is managed by interpreting the angles measured by the MPU6050 and transmitting this data wirelessly to the UAV, which adjusts its flight surfaces accordingly. The throttle control is managed via a switch mechanism on the transmitter.
