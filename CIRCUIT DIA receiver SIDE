@@ -1,0 +1,6 @@
+   +--------------+           +-------------+          +-------------+
+   | Arduino Nano |           | Servo Motor 1|         | Servo Motor 2|
+   +--------------+           +-------------+          +-------------+
+       5V  ------------>         Power (Red)           Power (Red)   <------------ 5V
+      GND  ------------>         Ground (Black)        Ground (Black) <------------ GND
+      Pin 4 ------------>         Signal (Yellow)      Signal (Yellow) <------------ Pin 5
