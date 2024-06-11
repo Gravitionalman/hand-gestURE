@@ -1,0 +1,170 @@
+#include <Wire.h>
+#include <MPU6050.h>
+#include <RF24.h>
+#define BUTTON_PIN 0
+int value = 0;   
+bool buttonState = false;  // Current state of the button
+bool lastButtonState = false; // Previous state of the button
+unsigned long lastUpdateTime = 0; // Last time the value was updated
+unsigned long interval = 2000;
+float RatePitch, RateRoll, RateYaw;
+float RateCalibrationPitch, RateCalibrationRoll, RateCalibrationYaw;
+float AngleRoll ,AnglePitch;
+float AccX ,AccY , AccZ;
+float KalmanAngleRoll = 0 , KalmanUncertaintyAngleRoll = 2*2;
+float KalmanAnglePitch = 0 , KalmanUncertaintyAnglePitch = 2*2;
+float Kalman1DOutput[] = {0,0};
+
+void kalman_1d(float KalmanState , float KalmanUncertainty ,float KalmanInput, float KalmanMeasurement){
+  KalmanState = KalmanState + 0.004*KalmanInput;
+  KalmanUncertainty = KalmanUncertainty + 0.004*0.004*4*4;
+  float KalmanGain = KalmanUncertainty*1/(1*KalmanUncertainty +3*3);
+  KalmanState = KalmanState + KalmanGain*(KalmanMeasurement-KalmanState);
+  KalmanUncertainty = (1-KalmanGain)*KalmanUncertainty;
+
+  Kalman1DOutput[0] = KalmanState;
+  Kalman1DOutput[1] = KalmanUncertainty;
+
+
+}
+
+// MPU6050 and RF24 setup
+MPU6050 mpu;
+RF24 radio(2, 15); // CE, CSN
+const byte address[6] = "00001";
+int counter = 0;
+int pstate;
+int astate;
+
+// Rotary encoder setup
+ // Pins for the rotary encoder
+ void gyro_signals(void) {
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1A);
+  Wire.write(0x05);
+  Wire.endTransmission();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1C);
+  Wire.write(0x10);
+  Wire.endTransmission();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B);
+  Wire.endTransmission();
+  Wire.requestFrom(0x68,6);
+  int16_t AcX = Wire.read() << 8 | Wire.read();
+  int16_t AcY = Wire.read() << 8 | Wire.read();
+  int16_t AcZ = Wire.read() << 8 | Wire.read();
+
+   Wire.beginTransmission(0x68);
+   Wire.write(0x1B);
+   Wire.write(0x8);
+   Wire.endTransmission();
+   Wire.beginTransmission(0x68);
+   Wire.write(0x43);
+   Wire.endTransmission();
+   Wire.requestFrom(0x68,6);
+
+  int16_t GyroX=Wire.read()<<8 | Wire.read();
+  int16_t GyroY=Wire.read()<<8 | Wire.read();
+  int16_t GyroZ=Wire.read()<<8 | Wire.read();
+  RateRoll=(float)GyroX/65.5;
+  RatePitch=(float)GyroY/65.5;
+  RateYaw=(float)GyroZ/65.5;
+
+  AccX = (float)AcX/4098;
+  AccY = (float)AcY/4098;
+  AccZ = (float)AcZ/4098;
+
+  AngleRoll = atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*1/(3.142/180);
+  AnglePitch = atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*1/(3.142/180);
+
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.setClock(400000);
+  Wire.begin();
+  delay(250);
+  Wire.beginTransmission(0x68);
+  Wire.write(0x6B);
+  Wire.write(0x00);
+  Wire.endTransmission();
+  pinMode(BUTTON_PIN, INPUT);
+  // Initialize NRF24
+  radio.begin();
+  radio.openWritingPipe(address);
+  radio.setPALevel(RF24_PA_MAX);
+
+  // Initialize the rotary encoder (if any other setup is needed, it goes here)
+
+
+}
+
+
+
+void loop() 
+{
+  gyro_signals();
+  Serial.println("Angle1=" );
+  Serial.print(AngleRoll);
+  Serial.println("Angle2=");
+  Serial.print(AnglePitch);
+  Serial.println("       ");
+  // Create data packet
+  /*int16_t data1 = gx;
+  int16_t data2 = gy;
+  int16_t data3 = gz;*/
+  buttonState = digitalRead(BUTTON_PIN) == LOW;
+
+  if (buttonState != lastButtonState) {
+    lastButtonState = buttonState;
+    // Debounce delay
+    delay(50);
+  }
+
+  // If the button is pressed
+  if (buttonState) {
+    // Increment the value if enough time has passed
+    if (millis() - lastUpdateTime >= interval) {
+      lastUpdateTime = millis();
+      if (value < 1000) {
+        value++;
+        interval = map(value, 0, 1000, 100, 10); // Decrease interval as value increases
+      }
+    }
+  } else {
+    // Decrement the value if enough time has passed
+    if (millis() - lastUpdateTime >= interval) {
+      lastUpdateTime = millis();
+      if (value > 0) {
+        value--;
+        interval = map(value, 0, 1000, 10, 100); // Increase interval as value decreases
+      }
+    }
+  }
+  kalman_1d(KalmanAngleRoll, KalmanUncertaintyAngleRoll,RateRoll,AngleRoll);
+   KalmanAngleRoll = Kalman1DOutput[0];
+   KalmanUncertaintyAngleRoll = Kalman1DOutput[1];
+  kalman_1d(KalmanAnglePitch,KalmanUncertaintyAnglePitch,RatePitch,AnglePitch);
+    KalmanAnglePitch =  Kalman1DOutput[0];
+    KalmanUncertaintyAnglePitch = Kalman1DOutput[1];
+
+
+
+  // Send MPU6050 data
+  /*radio.write(&value, sizeof(value));*/
+  radio.write(&KalmanAngleRoll, sizeof(KalmanAnglePitch));
+  radio.write(&KalmanAnglePitch, sizeof(KalmanAnglePitch));
+  /*radio.write(&data3, sizeof(data3));
+  // Send rotary encoder data*/
+ 
+
+ 
+  Serial.println(KalmanAngleRoll);
+  Serial.println(KalmanAnglePitch);
+  Serial.println(value);
+ 
+
+  delay(100); // Adjust delay as needed
+}
+  
