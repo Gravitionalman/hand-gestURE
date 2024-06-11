@@ -1,0 +1,61 @@
+
+
+
+#include <RF24.h>
+#include <Servo.h>
+
+RF24 radio(7, 8); // CE, CSN
+const byte address[6] = "00001";
+Servo myservo1;
+Servo myservo2;
+Servo myservo3;
+
+
+void setup() {
+  Serial.begin(115200);
+  radio.begin();
+  radio.openReadingPipe(1, address);
+  radio.setPALevel(RF24_PA_MAX);
+  radio.startListening();
+  myservo1.attach(5);
+  myservo2.attach(4);
+  myservo3.attach(9);
+  myservo1.write(90);
+  pinMode(6,OUTPUT);
+}
+
+void loop() {
+  if (radio.available()) {
+   int16_t data1 ;
+   float  KalmanAngleRoll;
+   float  KalmanAnglePitch;
+   int value;
+   radio.read(&value, sizeof(value));
+   
+   radio.read(&KalmanAngleRoll, sizeof(KalmanAngleRoll));
+   radio.read(&KalmanAnglePitch, sizeof(KalmanAnglePitch));
+   /*radio.read(&data3, sizeof(data3))*/;
+   
+   Serial.println("Data recieved");
+   
+ // Initialize offset for Z axis
+  myservo1.write(KalmanAngleRoll+95);
+  myservo2.write(KalmanAnglePitch+95);
+  
+  analogWrite(6,value);
+  Serial.print("AERIONS ");
+  Serial.println(KalmanAnglePitch);
+  Serial.println("       ");
+  Serial.println(KalmanAngleRoll);
+   Serial.print("ELEVATORS ");
+  Serial.print("RUDDERS ");
+   Serial.println(value);
+
+
+  }
+  else {
+    Serial.println("No data available.");
+  }
+
+  delay(100); // Adjust delay as needed
+}
